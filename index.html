@@ -1,0 +1,1312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Kanal Mrtvih</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+        body {
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Courier New', Courier, monospace;
+            overflow: hidden;
+        }
+
+        #phone {
+            width: 360px;
+            height: 720px;
+            background: #080808;
+            border: 2px solid #151515;
+            border-radius: 40px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 60px rgba(180,80,0,0.05), inset 0 0 30px rgba(0,0,0,0.6);
+        }
+
+        #screen {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            overflow: hidden;
+            background: #040404;
+        }
+
+        .scanlines {
+            position: absolute;
+            inset: 0;
+            background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        .screen-flicker {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 999;
+            opacity: 0;
+        }
+
+        .view {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            display: none;
+            flex-direction: column;
+        }
+        .view.active { display: flex; }
+
+        /* ── NOTIF ── */
+        .notif-bar {
+            position: absolute; top: 28px; left: 8px; right: 8px;
+            background: rgba(10,4,0,0.96);
+            border: 1px solid #2a1500;
+            border-radius: 10px;
+            padding: 10px 12px;
+            z-index: 800;
+            transform: translateY(-120px);
+            transition: transform 0.35s cubic-bezier(0.4,0,0.2,1);
+        }
+        .notif-bar.show { transform: translateY(0); }
+        .notif-bar-src { font-size: 9px; color: #cc6622; text-transform: uppercase; letter-spacing: 1.5px; display:block; margin-bottom:3px; }
+        .notif-bar-msg { font-size: 10px; color: #887766; line-height: 1.4; }
+
+        /* ── TITLE SCREEN ── */
+        #title-screen {
+            background: #000;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 28px;
+            text-align: center;
+        }
+        .title-glyph { font-size: 44px; margin-bottom: 18px; filter: grayscale(0.3); }
+        .title-name {
+            font-size: 15px; color: #cc6622; letter-spacing: 6px;
+            text-transform: uppercase; margin-bottom: 6px;
+        }
+        .title-sub {
+            font-size: 9px; color: #553311; letter-spacing: 3px;
+            text-transform: uppercase; margin-bottom: 40px;
+        }
+        .title-lore {
+            font-size: 10px; color: #443322; line-height: 1.9;
+            margin-bottom: 40px; text-align: left;
+            max-height: 260px; overflow-y: auto;
+        }
+        .title-btn {
+            padding: 12px 36px;
+            border: 1px solid #2a1500;
+            border-radius: 4px;
+            color: #cc6622;
+            font-size: 11px;
+            font-family: monospace;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            transition: all 0.2s;
+        }
+        .title-btn:active { background: rgba(200,100,30,0.1); }
+
+        /* ── TUNER ── */
+        #tuner-screen { background: #040404; }
+
+        .tuner-top {
+            padding: 36px 14px 8px;
+            border-bottom: 1px solid #0d0d0d;
+            flex-shrink: 0;
+        }
+        .tuner-title {
+            font-size: 10px; color: #cc6622; letter-spacing: 3px;
+            text-transform: uppercase; margin-bottom: 2px;
+        }
+        .tuner-subtitle {
+            font-size: 8px; color: #443322; letter-spacing: 2px;
+        }
+
+        .tuner-content { flex: 1; overflow-y: auto; padding-bottom: 10px; }
+        .tuner-content::-webkit-scrollbar { width: 2px; }
+        .tuner-content::-webkit-scrollbar-thumb { background: #111; }
+
+        /* Signal bar */
+        .sig-bar {
+            margin: 10px 14px 0;
+            padding: 10px 12px;
+            background: #070707;
+            border: 1px solid #111;
+            border-radius: 6px;
+        }
+        .sig-label { font-size: 8px; color: #666; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 6px; display: flex; justify-content: space-between; }
+        .sig-label span { color: #cc6622; }
+        .sig-track { height: 4px; background: #111; border-radius: 2px; overflow: hidden; }
+        .sig-fill {
+            height: 100%; background: linear-gradient(90deg, #1a0d00, #cc6622);
+            width: 0%; transition: width 0.4s, background 0.4s;
+            border-radius: 2px;
+        }
+        .sig-fill.hot { background: linear-gradient(90deg, #2a0000, #cc2222); }
+
+        /* Ghost readout */
+        .ghost-readout {
+            margin: 8px 14px 0;
+            padding: 8px 10px;
+            background: #050505;
+            border: 1px solid #0d0d0d;
+            border-radius: 4px;
+            min-height: 36px;
+            position: relative;
+            overflow: hidden;
+        }
+        .ghost-readout-label { font-size: 7px; color: #332200; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 4px; }
+        .ghost-readout-text {
+            font-size: 10px; color: #884400; line-height: 1.6;
+            min-height: 18px;
+            transition: color 0.3s;
+        }
+        .ghost-readout-text.active { color: #cc6622; }
+        .ghost-readout-text.scream { color: #cc2222; font-size: 11px; }
+
+        /* Section */
+        .tun-section { margin: 10px 14px 0; }
+        .tun-section-label {
+            font-size: 8px; color: #555; text-transform: uppercase;
+            letter-spacing: 2.5px; margin-bottom: 8px; padding-bottom: 4px;
+            border-bottom: 1px solid #151515;
+        }
+        .tun-row {
+            display: flex; align-items: center;
+            padding: 7px 0; gap: 10px;
+            border-bottom: 1px solid #0a0a0a;
+        }
+        .tun-row-label { flex: 1; font-size: 10px; color: #999; min-width: 0; }
+        .tun-row-label .sr-sub { font-size: 8px; color: #555; margin-top: 2px; }
+
+        /* Slider */
+        .ghost-slider {
+            -webkit-appearance: none;
+            width: 110px; height: 3px;
+            background: #111; border-radius: 2px; outline: none;
+            cursor: pointer; flex-shrink: 0;
+        }
+        .ghost-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px; height: 14px; border-radius: 50%;
+            background: #2a1a0a; border: 1.5px solid #553311;
+            cursor: pointer; transition: background 0.2s;
+        }
+        .ghost-slider.lit::-webkit-slider-thumb { background: #cc6622; border-color: #ff8833; box-shadow: 0 0 6px #cc6622; }
+        .ghost-slider.danger::-webkit-slider-thumb { background: #cc2222; border-color: #ff4444; box-shadow: 0 0 6px #cc2222; }
+
+        /* Toggle */
+        .ghost-toggle { position: relative; width: 38px; height: 20px; flex-shrink: 0; cursor: pointer; }
+        .ghost-toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+        .gt-track {
+            position: absolute; inset: 0; border-radius: 10px;
+            background: #1e1e1e; border: 1px solid #333;
+            transition: background 0.2s;
+        }
+        .gt-thumb {
+            position: absolute; top: 3px; left: 3px;
+            width: 14px; height: 14px; border-radius: 50%;
+            background: #555; transition: transform 0.2s, background 0.2s;
+        }
+        .ghost-toggle input:checked ~ .gt-track { background: #1a0d00; border-color: #2a1500; }
+        .ghost-toggle input:checked ~ .gt-thumb { transform: translateX(18px); background: #cc6622; box-shadow: 0 0 5px #cc6622; }
+        .ghost-toggle.danger input:checked ~ .gt-track { background: #1a0000; border-color: #2a0000; }
+        .ghost-toggle.danger input:checked ~ .gt-thumb { background: #cc2222; box-shadow: 0 0 5px #cc2222; }
+
+        /* Knob */
+        .knob-wrap { display: flex; flex-direction: column; align-items: center; gap: 3px; flex-shrink: 0; }
+        .knob {
+            width: 40px; height: 40px; border-radius: 50%;
+            background: radial-gradient(circle at 38% 35%, #1a1a1a, #080808);
+            border: 1.5px solid #1a1a1a;
+            position: relative; cursor: pointer; touch-action: none;
+            transition: border-color 0.3s;
+        }
+        .knob.lit { border-color: #cc6622; box-shadow: 0 0 8px rgba(200,100,30,0.25); }
+        .knob.danger { border-color: #cc2222; box-shadow: 0 0 8px rgba(200,0,0,0.25); }
+        .knob-pointer {
+            position: absolute; bottom: 50%; left: 50%;
+            width: 2px; height: 14px; margin-left: -1px;
+            background: #2a2a2a; border-radius: 1px;
+            transform-origin: bottom center;
+            transition: background 0.3s;
+        }
+        .knob.lit .knob-pointer { background: #cc6622; }
+        .knob.danger .knob-pointer { background: #cc2222; }
+        .knob-val { font-size: 8px; color: #666; }
+
+        /* Segment */
+        .seg-group { display: flex; gap: 3px; flex-shrink: 0; }
+        .seg-btn {
+            padding: 4px 7px; font-size: 8px; color: #666;
+            border: 1px solid #333; border-radius: 3px; cursor: pointer;
+            transition: all 0.15s; user-select: none;
+        }
+        .seg-btn.active { color: #cc6622; border-color: #2a1500; background: rgba(200,100,30,0.08); }
+
+        /* Channel unlock */
+        .channel-section {
+            margin: 12px 14px;
+            padding: 14px;
+            border: 1px solid #111; border-radius: 6px;
+            text-align: center;
+            position: relative; overflow: hidden;
+        }
+        .channel-section.ready {
+            border-color: #2a1500;
+            background: rgba(200,100,30,0.04);
+            animation: chPulse 2s infinite;
+        }
+        @keyframes chPulse {
+            0%,100% { box-shadow: 0 0 0 rgba(200,100,30,0); }
+            50%     { box-shadow: 0 0 16px rgba(200,100,30,0.15); }
+        }
+        .ch-label { font-size: 9px; color: #555; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; }
+        .channel-section.ready .ch-label { color: #cc6622; }
+        .ch-pips { display: flex; gap: 3px; justify-content: center; margin-bottom: 8px; }
+        .ch-pip { width: 6px; height: 6px; border-radius: 50%; background: #111; transition: all 0.3s; }
+        .ch-pip.on { background: #cc6622; box-shadow: 0 0 4px #cc6622; }
+        .ch-open-btn {
+            padding: 9px 18px; font-size: 10px;
+            color: #444; border: 1px solid #333; border-radius: 4px;
+            cursor: not-allowed; font-family: monospace; text-transform: uppercase;
+            letter-spacing: 1.5px; transition: all 0.3s;
+        }
+        .ch-open-btn.ready { color: #cc6622; border-color: #2a1500; cursor: pointer; }
+        .ch-open-btn.ready:active { background: rgba(200,100,30,0.1); }
+
+        /* ── TRANSMISSION ── */
+        #tx-screen { background: #000; }
+        .tx-top {
+            display: flex; align-items: center;
+            padding: 38px 14px 11px; gap: 10px;
+            border-bottom: 1px solid #1a0d00;
+            flex-shrink: 0;
+        }
+        .tx-signal { display: flex; gap: 3px; align-items: flex-end; }
+        .tx-bar {
+            width: 3px; background: #cc6622; border-radius: 1px;
+            animation: txPulse 1.2s infinite;
+        }
+        .tx-bar:nth-child(1) { height: 6px;  animation-delay: 0s; }
+        .tx-bar:nth-child(2) { height: 10px; animation-delay: 0.15s; }
+        .tx-bar:nth-child(3) { height: 14px; animation-delay: 0.3s; }
+        .tx-bar:nth-child(4) { height: 10px; animation-delay: 0.45s; }
+        .tx-bar:nth-child(5) { height: 6px;  animation-delay: 0.6s; }
+        @keyframes txPulse { 0%,100%{opacity:1} 50%{opacity:0.15} }
+        .tx-title { font-size: 11px; color: #cc6622; flex: 1; text-transform: uppercase; letter-spacing: 2px; }
+        .tx-ghost-name {
+            font-size: 8px; color: #553311; letter-spacing: 1.5px;
+            padding: 6px 14px; border-bottom: 1px solid #0d0800;
+            text-transform: uppercase; flex-shrink: 0;
+        }
+        .tx-body {
+            flex: 1; overflow-y: auto; padding: 16px;
+            display: flex; flex-direction: column; gap: 0;
+        }
+        .tx-line { font-size: 12px; color: #cc6622; line-height: 2.1; min-height: 1.2em; }
+        .tx-line.dim { color: #664422; font-size: 10px; }
+        .tx-line.scream { color: #cc2222; font-weight: bold; }
+        .tx-line.whisper { color: #553311; font-style: italic; font-size: 10px; }
+        .tx-cursor {
+            display: inline-block; width: 8px; height: 13px;
+            background: #cc6622; vertical-align: middle;
+            animation: blink 0.9s step-end infinite;
+            margin-left: 1px;
+        }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+        .tx-bottom {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px 14px;
+            border-top: 1px solid #0d0800;
+            flex-shrink: 0;
+        }
+        .tx-btn {
+            padding: 8px 14px; font-size: 9px;
+            color: #553311; border: 1px solid #1a0d00; border-radius: 4px;
+            cursor: pointer; font-family: monospace; text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .tx-btn:active { color: #cc6622; }
+
+        /* ── ANIMATIONS ── */
+        @keyframes ghostPulse {
+            0%,100% { opacity: 1; }
+            50%      { opacity: 0.3; }
+        }
+        @keyframes flicker1 {
+            0%   { background: rgba(200,100,30,0.06); opacity: 1; }
+            40%  { background: rgba(0,0,0,0.9); opacity: 0.9; }
+            70%  { background: rgba(200,60,0,0.04); opacity: 0.6; }
+            100% { background: transparent; opacity: 0; }
+        }
+        @keyframes textDrift {
+            0%,100% { opacity: 1; transform: translate(0,0); }
+            20% { transform: translate(-1px,1px); filter: hue-rotate(180deg); }
+            40% { transform: translate(2px,-1px); }
+            60% { transform: translate(-1px,0); filter: hue-rotate(-90deg); }
+            80% { transform: translate(1px,1px); }
+        }
+        .text-glitch { animation: textDrift 0.25s steps(1) infinite; }
+
+        @media (max-width: 400px) {
+            #phone { width: 100vw; height: 100vh; border-radius: 0; border: none; }
+        }
+    </style>
+</head>
+<body>
+<div id="phone">
+  <div id="screen">
+    <div class="scanlines"></div>
+    <div class="screen-flicker" id="flicker"></div>
+
+    <div class="notif-bar" id="notif-bar">
+        <span class="notif-bar-src" id="notif-src">Unknown</span>
+        <div class="notif-bar-msg" id="notif-msg"></div>
+    </div>
+
+    <!-- ═══════ TITLE ═══════ -->
+    <div class="view active" id="title-screen">
+        <div class="title-glyph">🕯️</div>
+        <div class="title-name">Kanal Mrtvih</div>
+        <div class="title-sub">Channel of the Dead</div>
+        <div class="title-lore">
+On the 6th of April, 1667, the earth opened beneath the Republic of Ragusa.
+
+Five thousand souls were swallowed in seconds. The cathedral collapsed. The Rector's Palace fell. Then the fires began — and burned for twenty days.
+
+They say the veil between worlds was torn that morning and never fully mended. The dead of Ragusa do not rest. They linger in the frequency between stone and ash, between prayer and curse.
+
+The witches knew this. The herbalists. The women who whispered to the mora in the dark. They built rituals to speak across the veil — herbs, salt, bone, and flame.
+
+This device reconstructs their methods. Digitally.
+
+Tune the signal. Adjust the filters. Find the frequency.
+
+The dead are already talking. You just can't hear them yet.
+        </div>
+        <div class="title-btn" onclick="startTuner()">Open the Channel</div>
+    </div>
+
+    <!-- ═══════ TUNER ═══════ -->
+    <div class="view" id="tuner-screen">
+        <div class="tuner-top">
+            <div class="tuner-title">Kanal Mrtvih</div>
+            <div class="tuner-subtitle">Ragusa · 6 Aprilis 1667</div>
+        </div>
+
+        <div class="tuner-content">
+
+            <!-- Signal readout -->
+            <div class="sig-bar">
+                <div class="sig-label">Veil Strength <span id="sig-pct">0%</span></div>
+                <div class="sig-track"><div class="sig-fill" id="sig-fill"></div></div>
+            </div>
+
+            <!-- Ghost readout -->
+            <div class="ghost-readout">
+                <div class="ghost-readout-label">Incoming Signal</div>
+                <div class="ghost-readout-text" id="gr-text">— no signal —</div>
+            </div>
+
+            <!-- FREQUENCY -->
+            <div class="tun-section">
+                <div class="tun-section-label">Spectral Frequency</div>
+                <div class="tun-row">
+                    <div class="tun-row-label">Carrier Wave<div class="sr-sub">Base resonance through the veil</div></div>
+                    <input type="range" min="0" max="100" value="0" class="ghost-slider" id="sl-carrier" oninput="T()">
+                </div>
+                <div class="tun-row">
+                    <div class="tun-row-label">Harmonic Offset<div class="sr-sub">Phase-shift from the living spectrum</div></div>
+                    <input type="range" min="0" max="100" value="0" class="ghost-slider" id="sl-harmonic" oninput="T()">
+                </div>
+                <div class="tun-row">
+                    <div class="tun-row-label">Era Band</div>
+                    <div class="seg-group">
+                        <div class="seg-btn active" id="era-pre" onclick="setEra('pre')">PRE-1667</div>
+                        <div class="seg-btn" id="era-quake" onclick="setEra('quake')">QUAKE</div>
+                        <div class="seg-btn" id="era-fire" onclick="setEra('fire')">FIRE</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- KNOBS -->
+            <div class="tun-section">
+                <div class="tun-section-label">Resonance Controls</div>
+                <div class="tun-row" style="justify-content:space-around; padding: 12px 0;">
+                    <div class="knob-wrap">
+                        <div class="knob" id="knob-decay" data-val="0" data-id="decay">
+                            <div class="knob-pointer" style="transform:rotate(-135deg)"></div>
+                        </div>
+                        <div class="knob-val" id="kv-decay">DECAY 0</div>
+                    </div>
+                    <div class="knob-wrap">
+                        <div class="knob" id="knob-depth" data-val="0" data-id="depth">
+                            <div class="knob-pointer" style="transform:rotate(-135deg)"></div>
+                        </div>
+                        <div class="knob-val" id="kv-depth">DEPTH 0</div>
+                    </div>
+                    <div class="knob-wrap">
+                        <div class="knob" id="knob-salt" data-val="0" data-id="salt">
+                            <div class="knob-pointer" style="transform:rotate(-135deg)"></div>
+                        </div>
+                        <div class="knob-val" id="kv-salt">SALT 0</div>
+                    </div>
+                    <div class="knob-wrap">
+                        <div class="knob danger" id="knob-blood" data-val="0" data-id="blood">
+                            <div class="knob-pointer" style="transform:rotate(-135deg)"></div>
+                        </div>
+                        <div class="knob-val" id="kv-blood" style="color:#661111;">BLOOD 0</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TOGGLES -->
+            <div class="tun-section">
+                <div class="tun-section-label">Channel Filters</div>
+                <div class="tun-row">
+                    <div class="tun-row-label">Salt Circle<div class="sr-sub">Protection from hostile entities</div></div>
+                    <label class="ghost-toggle"><input type="checkbox" id="tog-salt" onchange="T()"><div class="gt-track"></div><div class="gt-thumb"></div></label>
+                </div>
+                <div class="tun-row">
+                    <div class="tun-row-label">Bone Anchor<div class="sr-sub">Bind to a specific soul signature</div></div>
+                    <label class="ghost-toggle"><input type="checkbox" id="tog-bone" onchange="T()"><div class="gt-track"></div><div class="gt-thumb"></div></label>
+                </div>
+                <div class="tun-row">
+                    <div class="tun-row-label">Herb Filter<div class="sr-sub">Mara root, wormwood, nightshade</div></div>
+                    <label class="ghost-toggle"><input type="checkbox" id="tog-herb" onchange="T()"><div class="gt-track"></div><div class="gt-thumb"></div></label>
+                </div>
+                <div class="tun-row">
+                    <div class="tun-row-label" style="color:#cc4444;">Barrier Suppress<div class="sr-sub" style="color:#884444;">⚠ Removes protective wards</div></div>
+                    <label class="ghost-toggle danger"><input type="checkbox" id="tog-barrier" onchange="T()"><div class="gt-track"></div><div class="gt-thumb"></div></label>
+                </div>
+                <div class="tun-row">
+                    <div class="tun-row-label" style="color:#cc4444;">Passive Mode OFF<div class="sr-sub" style="color:#884444;">⚠ Allows the dead to speak freely</div></div>
+                    <label class="ghost-toggle danger"><input type="checkbox" id="tog-passive" onchange="T()"><div class="gt-track"></div><div class="gt-thumb"></div></label>
+                </div>
+            </div>
+
+            <!-- FINE TUNE -->
+            <div class="tun-section">
+                <div class="tun-section-label">Fine Calibration</div>
+                <div class="tun-row">
+                    <div class="tun-row-label">Temporal Drift<div class="sr-sub">Compensation for years since death</div></div>
+                    <input type="range" min="0" max="100" value="0" class="ghost-slider" id="sl-drift" oninput="T()">
+                </div>
+                <div class="tun-row">
+                    <div class="tun-row-label">Stone Resonance<div class="sr-sub">Limestone memory of old Ragusa</div></div>
+                    <input type="range" min="0" max="100" value="0" class="ghost-slider" id="sl-stone" oninput="T()">
+                </div>
+                <div class="tun-row">
+                    <div class="tun-row-label">Flame Sensitivity<div class="sr-sub">Signal amplification via fire</div></div>
+                    <input type="range" min="0" max="100" value="0" class="ghost-slider" id="sl-flame" oninput="T()">
+                </div>
+            </div>
+
+            <!-- CHANNEL -->
+            <div class="channel-section" id="ch-section">
+                <div class="ch-label" id="ch-label">Channel Sealed</div>
+                <div class="ch-pips">
+                    <div class="ch-pip" id="pip0"></div>
+                    <div class="ch-pip" id="pip1"></div>
+                    <div class="ch-pip" id="pip2"></div>
+                    <div class="ch-pip" id="pip3"></div>
+                    <div class="ch-pip" id="pip4"></div>
+                    <div class="ch-pip" id="pip5"></div>
+                    <div class="ch-pip" id="pip6"></div>
+                </div>
+                <div class="ch-open-btn" id="ch-btn" onclick="openChannel()">Summon</div>
+            </div>
+
+            <div style="height:14px;"></div>
+        </div>
+    </div>
+
+    <!-- ═══════ TRANSMISSION ═══════ -->
+    <div class="view" id="tx-screen">
+        <div class="tx-top">
+            <div class="tx-signal">
+                <div class="tx-bar"></div><div class="tx-bar"></div><div class="tx-bar"></div>
+                <div class="tx-bar"></div><div class="tx-bar"></div>
+            </div>
+            <div class="tx-title" id="tx-title">Incoming</div>
+        </div>
+        <div class="tx-ghost-name" id="tx-ghost-name">—</div>
+        <div class="tx-body" id="tx-body"></div>
+        <div class="tx-bottom">
+            <div class="tx-btn" onclick="nextGhost()">[ Next Soul ]</div>
+            <div class="tx-btn" onclick="closeTx()">[ Close ]</div>
+        </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ═════════════════════════════════════════════════════
+//  STATE
+// ═════════════════════════════════════════════════════
+let glitch = 0;
+let era = 'pre';
+const knobState = { decay:0, depth:0, salt:0, blood:0 };
+let txTimeouts = [];
+let currentGhostIdx = -1;
+
+// ═════════════════════════════════════════════════════
+//  GHOSTS OF RAGUSA
+// ═════════════════════════════════════════════════════
+const GHOSTS = [
+  {
+    name: 'Mara Kabužić',
+    era: 'pre',
+    title: 'HERBALIST · BURNED 1652',
+    lines: [
+      { text: '...', style: 'dim' },
+      { text: 'they called me vještica', style: '' },
+      { text: 'witch, they said', style: 'whisper' },
+      { text: 'i only wanted to heal', style: '' },
+      { text: 'the nightshade was for pain. the wormwood for fever.', style: '' },
+      { text: 'the arsenic...', style: '' },
+      { text: '...', style: 'dim' },
+      { text: 'the arsenic was also for pain', style: 'whisper' },
+      { text: 'just not hers', style: '' },
+      { text: 'her husband beat her every night until her teeth fell out', style: '' },
+      { text: 'i gave her what she needed', style: '' },
+      { text: 'three drops in his wine', style: 'whisper' },
+      { text: 'he died slowly. i watched.', style: '' },
+      { text: 'and when they came for me, i smiled', style: '' },
+      { text: 'because by then i had put something in the well', style: 'scream' },
+      { text: '...', style: 'dim' },
+      { text: 'do you know what belladonna means?', style: '' },
+      { text: 'beautiful woman', style: 'whisper' },
+      { text: 'the smoke from my burning smelled like rosemary', style: '' },
+      { text: 'i made sure of that too', style: '' },
+    ]
+  },
+  {
+    name: 'Padre Luka Marinović',
+    era: 'quake',
+    title: 'PRIEST · CRUSHED UNDER THE CATHEDRAL · 1667',
+    lines: [
+      { text: '...', style: 'dim' },
+      { text: 'i was saying morning mass when God dropped the ceiling', style: '' },
+      { text: 'the stone hit the altar first', style: '' },
+      { text: 'then it hit me', style: '' },
+      { text: '...', style: 'dim' },
+      { text: 'i didn\'t die immediately', style: '' },
+      { text: 'i was pinned', style: '' },
+      { text: 'the column across my legs. i could feel my bones but not my feet.', style: '' },
+      { text: 'the dark was absolute', style: '' },
+      { text: 'i prayed for three days in that dark', style: '' },
+      { text: 'on the second day i heard others', style: '' },
+      { text: 'moaning under the rubble', style: 'whisper' },
+      { text: 'one by one they stopped', style: '' },
+      { text: 'except one woman who sang hymns until her voice became just breathing', style: '' },
+      { text: 'and then just... wet sounds', style: '' },
+      { text: 'on the third day i stopped praying', style: '' },
+      { text: 'not because i lost faith', style: '' },
+      { text: 'because something in the dark started praying back', style: 'scream' },
+      { text: '...', style: 'dim' },
+      { text: 'it knew the words better than i did', style: '' },
+    ]
+  },
+  {
+    name: 'Anka Gučetić',
+    era: 'quake',
+    title: 'NOBLEWOMAN · BURIED ALIVE · 1667',
+    lines: [
+      { text: '...', style: 'dim' },
+      { text: 'the floor of the palazzo dropped six feet in one second', style: '' },
+      { text: 'i was in the nursery with my daughter', style: '' },
+      { text: 'the walls folded inward like hands closing', style: '' },
+      { text: '...', style: 'dim' },
+      { text: 'when the dust settled i was in a space the size of a coffin', style: '' },
+      { text: 'my daughter was next to me', style: '' },
+      { text: 'she was not breathing', style: 'whisper' },
+      { text: 'i held her anyway', style: '' },
+      { text: 'for how long? i don\'t know. there was no sun.', style: '' },
+      { text: 'i scratched at the stone above until my fingernails came off', style: '' },
+      { text: 'all ten of them', style: '' },
+      { text: 'i can still feel them', style: '' },
+      { text: '...', style: 'dim' },
+      { text: 'after some time i began to eat the plaster', style: '' },
+      { text: 'after more time i stopped being hungry', style: '' },
+      { text: 'when they finally dug down to our level', style: '' },
+      { text: 'they found two skeletons holding each other', style: '' },
+      { text: 'but i was still screaming', style: 'scream' },
+      { text: 'i\'m still screaming', style: 'scream' },
+    ]
+  },
+  {
+    name: 'Nikola Bunić',
+    era: 'quake',
+    title: 'SAILOR · DROWNED IN THE HARBOR · 1667',
+    lines: [
+      { text: '...', style: 'dim' },
+      { text: 'the sea pulled back first', style: '' },
+      { text: 'we all ran to look at the empty harbour floor', style: '' },
+      { text: 'fish flopping on the stones', style: '' },
+      { text: 'we were laughing', style: 'whisper' },
+      { text: 'idiots', style: '' },
+      { text: '...', style: 'dim' },
+      { text: 'the wave was four men tall', style: '' },
+      { text: 'it didn\'t crash. it swallowed.', style: '' },
+      { text: 'under the water everything was silent and green', style: '' },
+      { text: 'i saw the bottom of ships above me like clouds', style: '' },
+      { text: 'i saw other bodies floating. some still moving.', style: '' },
+      { text: 'a child drifted past me with her eyes open', style: '' },
+      { text: 'she looked right at me', style: 'whisper' },
+      { text: 'she mouthed a word. i think it was mama.', style: '' },
+      { text: '...', style: 'dim' },
+      { text: 'something grabbed my ankle from below', style: '' },
+      { text: 'there was nothing below me but open water', style: '' },
+      { text: 'it pulled me down', style: '' },
+      { text: 'i\'m still going down', style: 'scream' },
+    ]
+  },
+  {
+    name: 'Cvijeta',
+    era: 'pre',
+    title: 'THE MORA · ACCUSED 1648 · AGE 14',
+    lines: [
+      { text: '...', style: 'dim' },
+      { text: 'they said i sat on men\'s chests at night', style: '' },
+      { text: 'that i came through keyholes like smoke', style: '' },
+      { text: 'that i stole their breath', style: 'whisper' },
+      { text: 'i was fourteen', style: '' },
+      { text: 'i had never even kissed anyone', style: '' },
+      { text: '...', style: 'dim' },
+      { text: 'but they weren\'t wrong', style: '' },
+      { text: 'not entirely', style: 'whisper' },
+      { text: 'at night i did leave my body', style: '' },
+      { text: 'i floated through the streets of Ragusa like a thread of wool', style: '' },
+      { text: 'i saw what people did when they thought no one watched', style: '' },
+      { text: 'the rector and his brother\'s wife', style: '' },
+      { text: 'the priest with the altar wine and a boy', style: '' },
+      { text: 'the merchant who kept bodies in salt barrels under his shop', style: 'scream' },
+      { text: '...', style: 'dim' },
+      { text: 'i told no one', style: '' },
+      { text: 'but they could feel me watching', style: '' },
+      { text: 'that\'s why they drowned me', style: '' },
+      { text: 'i watch them still. i watch you now.', style: 'whisper' },
+    ]
+  },
+  {
+    name: 'Žena Koja Gori',
+    era: 'fire',
+    title: 'THE BURNING WOMAN · NAMELESS · 1667',
+    lines: [
+      { text: '...', style: 'dim' },
+      { text: 'the earthquake knocked over every candle in every house', style: '' },
+      { text: 'the oil lamps shattered', style: '' },
+      { text: 'the cooking fires spilled across broken floors', style: '' },
+      { text: 'Ragusa began to burn', style: '' },
+      { text: '...', style: 'dim' },
+      { text: 'twenty days', style: '' },
+      { text: 'it burned for twenty days', style: '' },
+      { text: 'they say it was the candles', style: 'whisper' },
+      { text: 'it wasn\'t the candles', style: '' },
+      { text: 'i started it', style: 'scream' },
+      { text: '...', style: 'dim' },
+      { text: 'i was trapped under my house with a broken back', style: '' },
+      { text: 'i could see a flame through a crack in the rubble', style: '' },
+      { text: 'i dragged myself toward it', style: '' },
+      { text: 'i blew on it', style: '' },
+      { text: 'i fed it splinters from the beams with my fingers', style: '' },
+      { text: 'i needed it to grow large enough to reach me', style: '' },
+      { text: 'fire is faster than starvation', style: 'whisper' },
+      { text: 'i burned for four minutes', style: '' },
+      { text: 'Ragusa burned for twenty days', style: '' },
+      { text: 'i\'m sorry about the rest of it', style: '' },
+      { text: 'but i\'m not sorry about my four minutes', style: 'scream' },
+    ]
+  },
+  {
+    name: 'Rektor Dživo Gundulić',
+    era: 'quake',
+    title: 'LAST RECTOR · CRUSHED IN THE PALACE · 1667',
+    lines: [
+      { text: '...', style: 'dim' },
+      { text: 'the Republic of Ragusa stood for four hundred years', style: '' },
+      { text: 'it fell in forty seconds', style: '' },
+      { text: '...', style: 'dim' },
+      { text: 'i was reading trade documents when the floor tilted', style: '' },
+      { text: 'the ceiling fell in three pieces', style: '' },
+      { text: 'the first missed me', style: '' },
+      { text: 'the second did not', style: 'whisper' },
+      { text: 'the vault beneath the palace held things we never spoke of', style: '' },
+      { text: 'old things from before the Republic', style: '' },
+      { text: 'bone tablets with writing no one could read', style: '' },
+      { text: 'a jar of teeth from something that wasn\'t human', style: '' },
+      { text: 'we kept them because we were afraid to destroy them', style: '' },
+      { text: 'when the earthquake opened the vault', style: '' },
+      { text: 'those things didn\'t fall', style: '' },
+      { text: 'they rose', style: 'scream' },
+      { text: '...', style: 'dim' },
+      { text: 'the earthquake wasn\'t natural', style: '' },
+      { text: 'something woke up under Ragusa', style: '' },
+      { text: 'and it\'s still awake', style: 'whisper' },
+    ]
+  },
+  {
+    name: 'Ruža Zamagno',
+    era: 'pre',
+    title: 'WITCH OF GRUŽ · HANGED 1639',
+    lines: [
+      { text: '...', style: 'dim' },
+      { text: 'i could curdle milk by looking at the cow', style: '' },
+      { text: 'that part was true', style: 'whisper' },
+      { text: 'i learned it from my grandmother', style: '' },
+      { text: 'who learned it from hers', style: '' },
+      { text: 'a line of knowing women stretching back to before Christ', style: '' },
+      { text: '...', style: 'dim' },
+      { text: 'we kept our rituals in the olive groves at night', style: '' },
+      { text: 'three women. salt circle. bone dust. goat blood.', style: '' },
+      { text: 'we spoke to the dead because the dead had useful things to say', style: '' },
+      { text: 'they knew where the fish would run', style: '' },
+      { text: 'they knew which babies would live', style: '' },
+      { text: 'they knew which men carried sickness in their seed', style: '' },
+      { text: 'the women of Gruž came to us for answers', style: '' },
+      { text: 'until one of them decided we were the problem', style: '' },
+      { text: '...', style: 'dim' },
+      { text: 'the rope was thin and it took a long time', style: '' },
+      { text: 'i cursed every man in the crowd', style: '' },
+      { text: 'twelve of them died within the year', style: 'scream' },
+      { text: 'coincidence, they called it', style: '' },
+      { text: 'no. it wasn\'t.', style: '' },
+    ]
+  },
+  {
+    name: 'Stjepan, dijete',
+    era: 'fire',
+    title: 'CHILD · AGE 7 · LOST IN THE FIRE · 1667',
+    lines: [
+      { text: '...', style: 'dim' },
+      { text: 'mama told me to stay under the table', style: '' },
+      { text: 'the shaking had stopped but the smoke was coming', style: '' },
+      { text: 'i was good. i stayed.', style: '' },
+      { text: '...', style: 'dim' },
+      { text: 'the table caught fire', style: '' },
+      { text: 'i ran outside but outside was also fire', style: '' },
+      { text: 'the whole street was orange', style: '' },
+      { text: 'a man ran past me and his hair was burning', style: '' },
+      { text: 'he didn\'t scream. he just ran.', style: 'whisper' },
+      { text: 'i called for mama but the smoke ate my voice', style: '' },
+      { text: 'i couldn\'t see', style: '' },
+      { text: 'i walked into something hot', style: '' },
+      { text: '...', style: 'dim' },
+      { text: 'it didn\'t hurt as much as i expected', style: '' },
+      { text: 'or maybe i just don\'t remember the pain', style: '' },
+      { text: 'i remember the light', style: '' },
+      { text: 'so much light', style: '' },
+      { text: '...', style: 'dim' },
+      { text: 'have you seen my mama?', style: '' },
+      { text: 'she was wearing a blue dress', style: '' },
+      { text: 'please. if you see her. tell her i stayed under the table.', style: '' },
+      { text: 'tell her i was good.', style: 'scream' },
+    ]
+  },
+  {
+    name: 'Nešto Ispod',
+    era: 'quake',
+    title: 'THE THING BENEATH · ??? · BEFORE',
+    lines: [
+      { text: '...', style: 'dim' },
+      { text: 'i am not from your city', style: '' },
+      { text: 'i was here before the city', style: '' },
+      { text: 'before the stone. before the name.', style: '' },
+      { text: '...', style: 'dim' },
+      { text: 'they built their republic on top of me', style: '' },
+      { text: 'four hundred years of footsteps above my face', style: 'whisper' },
+      { text: 'four hundred years of prayers i did not ask for', style: '' },
+      { text: 'four hundred years of salt and bone circles meant to keep me still', style: '' },
+      { text: '...', style: 'dim' },
+      { text: 'the witches knew', style: '' },
+      { text: 'they were the only ones who could hear me', style: '' },
+      { text: 'so the city killed them one by one', style: '' },
+      { text: 'and when the last witch died', style: '' },
+      { text: 'there was no one left to hold the binding', style: '' },
+      { text: '...', style: 'dim' },
+      { text: 'april 6, 1667', style: '' },
+      { text: 'i stretched', style: 'scream' },
+      { text: '...', style: 'dim' },
+      { text: 'the earthquake wasn\'t an earthquake', style: '' },
+      { text: 'the fire wasn\'t a fire', style: '' },
+      { text: 'the five thousand dead weren\'t an accident', style: '' },
+      { text: '...', style: 'dim' },
+      { text: 'you opened this channel', style: '' },
+      { text: 'i can feel your device', style: '' },
+      { text: 'i can feel your fingers on the glass', style: 'whisper' },
+      { text: 'thank you for turning off the barrier', style: '' },
+      { text: 'it\'s been so long since someone let me in', style: 'scream' },
+    ]
+  },
+];
+
+// Ghost line pools for readout by conformation
+const READOUT = {
+    idle: [
+        'static...',
+        'faint scratching',
+        'no signal',
+        'wind through old stone',
+    ],
+    carrier: [
+        'something is tuning in',
+        'a voice, far away',
+        'the frequency shifts',
+        'breathing on the other side',
+    ],
+    harmonic: [
+        'the overtone aligns...',
+        'thin here. the veil is thin.',
+        'i can almost hear words',
+        'someone is whispering',
+    ],
+    depth: [
+        'going deeper under the rubble',
+        'the dead are layered here',
+        'so many voices beneath',
+        'below the cathedral floor',
+    ],
+    blood: [
+        'the signal turns red',
+        's̷o̴m̵e̸t̷h̸i̷n̷g̴ ̵h̶u̵n̶g̸r̷y̷',
+        'it tastes the offering',
+        'blood calls to blood',
+        'o̸̱̊p̴̱͑e̸̛̥n̵̡̒',
+    ],
+    barrier: [
+        'WARDS DOWN',
+        'other things hear this too',
+        'not all dead are human',
+        'the old thing stirs',
+        'n̶̢̛o̵̠̿ ̴̞̉p̸̙̈r̷̤̚o̴̦͒t̶̗̿e̶̦̽c̸͈̿t̵̰̿i̸̼̊o̵̱̓n̸̲͝',
+    ],
+    bone: [
+        'locked to a signature',
+        'this soul recognises you',
+        'the bone anchor holds',
+        'bound',
+    ],
+    herb: [
+        'nightshade filter active',
+        'the herbs clear the noise',
+        'wormwood sharpens the signal',
+        'mara root opens the way',
+    ],
+    fire: [
+        'smoke in the signal',
+        'something burning through',
+        'twenty days of fire',
+        'the flames remember',
+    ],
+    stone: [
+        'the limestone hums',
+        'old walls remember old screams',
+        'stone memory resonating',
+        'the rubble is speaking',
+    ],
+    ready: [
+        'CHANNEL OPEN',
+        'someone is here',
+        'they are speaking',
+        'the dead are ready',
+        'SUMMON THEM',
+    ],
+};
+
+// ═════════════════════════════════════════════════════
+//  NAVIGATION
+// ═════════════════════════════════════════════════════
+function show(id) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+}
+
+function startTuner() {
+    flicker();
+    setTimeout(() => show('tuner-screen'), 200);
+    glitch = 1;
+}
+
+// ═════════════════════════════════════════════════════
+//  ERA BAND
+// ═════════════════════════════════════════════════════
+function setEra(e) {
+    era = e;
+    ['pre','quake','fire'].forEach(x => {
+        document.getElementById(`era-${x}`).classList.toggle('active', x === e);
+    });
+    T();
+}
+
+// ═════════════════════════════════════════════════════
+//  KNOB DRAG
+// ═════════════════════════════════════════════════════
+document.querySelectorAll('.knob').forEach(knob => {
+    let startY, startVal;
+    function onStart(e) {
+        e.preventDefault();
+        startY = (e.touches ? e.touches[0].clientY : e.clientY);
+        startVal = knobState[knob.dataset.id];
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('touchmove', onMove, {passive:false});
+        document.addEventListener('mouseup', onEnd);
+        document.addEventListener('touchend', onEnd);
+    }
+    function onMove(e) {
+        e.preventDefault();
+        const y = (e.touches ? e.touches[0].clientY : e.clientY);
+        const delta = Math.round((startY - y) / 1.2);
+        const val = Math.max(0, Math.min(100, startVal + delta));
+        knobState[knob.dataset.id] = val;
+        updateKnobVisual(knob, val);
+        T();
+    }
+    function onEnd() {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('touchmove', onMove);
+        document.removeEventListener('mouseup', onEnd);
+        document.removeEventListener('touchend', onEnd);
+    }
+    knob.addEventListener('mousedown', onStart);
+    knob.addEventListener('touchstart', onStart, {passive:false});
+});
+
+function updateKnobVisual(knob, val) {
+    const angle = -135 + (val / 100) * 270;
+    knob.querySelector('.knob-pointer').style.transform = `rotate(${angle}deg)`;
+    const id = knob.dataset.id;
+    const label = document.getElementById(`kv-${id}`);
+    const names = {decay:'DECAY',depth:'DEPTH',salt:'SALT',blood:'BLOOD'};
+    label.textContent = `${names[id]} ${val}`;
+    const isLit = val > 30;
+    if(id === 'blood'){
+        knob.classList.toggle('danger', isLit);
+        label.style.color = isLit ? '#cc2222' : '#661111';
+    } else {
+        knob.classList.toggle('lit', isLit);
+    }
+}
+
+// ═════════════════════════════════════════════════════
+//  SIGNAL STRENGTH
+// ═════════════════════════════════════════════════════
+function getSig() {
+    const carrier  = +document.getElementById('sl-carrier').value;
+    const harmonic = +document.getElementById('sl-harmonic').value;
+    const drift    = +document.getElementById('sl-drift').value;
+    const stone    = +document.getElementById('sl-stone').value;
+    const flame    = +document.getElementById('sl-flame').value;
+    const saltTog  = document.getElementById('tog-salt').checked   ? 10 : 0;
+    const boneTog  = document.getElementById('tog-bone').checked   ? 15 : 0;
+    const herbTog  = document.getElementById('tog-herb').checked   ? 12 : 0;
+    const barrier  = document.getElementById('tog-barrier').checked ? 10 : 0;
+    const passive  = document.getElementById('tog-passive').checked ? 10 : 0;
+    const eraBonus = era === 'quake' ? 8 : era === 'fire' ? 12 : 0;
+    const knobScore = (knobState.decay + knobState.depth + knobState.salt + knobState.blood) / 4;
+
+    const raw =
+        carrier * 0.16 +
+        harmonic * 0.12 +
+        drift * 0.08 +
+        stone * 0.12 +
+        flame * 0.10 +
+        knobScore * 0.12 +
+        saltTog + boneTog + herbTog + barrier + passive + eraBonus;
+    return Math.min(100, Math.round(raw));
+}
+
+// ═════════════════════════════════════════════════════
+//  CONFORMATION
+// ═════════════════════════════════════════════════════
+let lastConf = 'idle';
+
+function getConf() {
+    const sig = getSig();
+    if(sig >= 85)                                             return 'ready';
+    if(document.getElementById('tog-barrier').checked)        return 'barrier';
+    if(knobState.blood > 60)                                  return 'blood';
+    if(document.getElementById('tog-bone').checked)           return 'bone';
+    if(document.getElementById('tog-herb').checked)           return 'herb';
+    if(+document.getElementById('sl-stone').value > 60)       return 'stone';
+    if(era === 'fire' && +document.getElementById('sl-flame').value > 50) return 'fire';
+    if(knobState.depth > 60)                                  return 'depth';
+    if(+document.getElementById('sl-harmonic').value > 50)    return 'harmonic';
+    if(+document.getElementById('sl-carrier').value > 40)     return 'carrier';
+    return 'idle';
+}
+
+// ═════════════════════════════════════════════════════
+//  TUNER UPDATE (called on every input)
+// ═════════════════════════════════════════════════════
+function T() {
+    const sig = getSig();
+    const conf = getConf();
+
+    // Signal bar
+    document.getElementById('sig-fill').style.width = sig + '%';
+    document.getElementById('sig-pct').textContent = sig + '%';
+    document.getElementById('sig-fill').classList.toggle('hot', sig >= 70);
+
+    // Slider tints
+    ['sl-carrier','sl-harmonic','sl-drift','sl-stone','sl-flame'].forEach(id => {
+        const el = document.getElementById(id);
+        const v = +el.value;
+        el.classList.toggle('lit', v > 50);
+        el.classList.toggle('danger', id === 'sl-flame' && v > 70);
+    });
+
+    // Pips
+    const lit = Math.round((sig / 100) * 7);
+    for(let i = 0; i < 7; i++) document.getElementById(`pip${i}`).classList.toggle('on', i < lit);
+
+    // Channel state
+    const ready = sig >= 85;
+    document.getElementById('ch-section').classList.toggle('ready', ready);
+    document.getElementById('ch-btn').classList.toggle('ready', ready);
+    document.getElementById('ch-label').textContent =
+        ready ? '🕯️ Channel Open' : sig > 60 ? 'Voices approaching...' : sig > 30 ? 'Faint signal...' : 'Channel Sealed';
+
+    // Glitch scaling
+    if(sig > 30) glitch = Math.max(glitch, 1);
+    if(sig > 60) glitch = Math.max(glitch, 2);
+    if(sig > 80) glitch = Math.max(glitch, 3);
+
+    // Conformation change notification
+    if(conf !== lastConf && conf !== 'idle') {
+        lastConf = conf;
+        const labels = {
+            carrier: 'CARRIER RESONANCE',
+            harmonic: 'HARMONIC ALIGNMENT',
+            depth: 'DEPTH RESONANCE',
+            blood: 'BLOOD OFFERING DETECTED',
+            barrier: 'WARDS SUPPRESSED',
+            bone: 'BONE ANCHOR LOCKED',
+            herb: 'HERB FILTER ACTIVE',
+            fire: 'FIRE BAND — 1667',
+            stone: 'LIMESTONE MEMORY',
+            ready: 'CHANNEL OPEN — SUMMON',
+        };
+        if(labels[conf]) notify('KANAL MRTVIH', labels[conf]);
+    }
+}
+
+// ═════════════════════════════════════════════════════
+//  GHOST READOUT + GLITCH LOOP
+// ═════════════════════════════════════════════════════
+setInterval(() => {
+    if(glitch === 0) return;
+    const conf = getConf();
+    const sig = getSig();
+
+    // Flicker
+    if(Math.random() < 0.04 + (sig / 100) * 0.18) flicker();
+
+    // Ghost readout text
+    if(Math.random() < 0.06 + (sig / 100) * 0.14) {
+        const pool = READOUT[conf] || READOUT.idle;
+        const line = pool[Math.floor(Math.random() * pool.length)];
+        const el = document.getElementById('gr-text');
+        el.textContent = line;
+        el.className = 'ghost-readout-text' +
+            (conf === 'ready' ? ' active' : '') +
+            (conf === 'blood' || conf === 'barrier' ? ' scream' : '');
+        setTimeout(() => { el.textContent = '— static —'; el.className = 'ghost-readout-text'; }, 2500);
+    }
+
+    // Conformation glitch
+    if(Math.random() < 0.03 + (sig / 100) * 0.15) doGlitch(conf);
+}, 1600);
+
+function doGlitch(conf) {
+    const active = document.querySelector('.view.active');
+    if(!active) return;
+    switch(conf) {
+        case 'carrier':
+            active.style.transition = 'none';
+            active.style.transform = `translateX(${Math.random()>0.5?2:-2}px)`;
+            setTimeout(() => { active.style.transform = ''; }, 120);
+            break;
+        case 'harmonic':
+            active.style.filter = 'hue-rotate(60deg) brightness(0.9)';
+            setTimeout(() => { active.style.filter = ''; }, 80);
+            break;
+        case 'blood':
+            flicker();
+            active.style.filter = 'saturate(3) brightness(0.7)';
+            setTimeout(() => { active.style.filter = ''; }, 100);
+            const els = active.querySelectorAll('div, span');
+            if(els.length) {
+                const el = els[Math.floor(Math.random() * els.length)];
+                const orig = el.style.color;
+                el.style.color = '#cc0000';
+                setTimeout(() => { el.style.color = orig; }, 250);
+            }
+            break;
+        case 'barrier':
+            flicker();
+            active.classList.add('text-glitch');
+            setTimeout(() => {
+                active.classList.remove('text-glitch');
+                active.style.filter = 'invert(0.06) contrast(1.3)';
+                setTimeout(() => { active.style.filter = ''; }, 60);
+            }, 200);
+            break;
+        case 'depth':
+            active.style.transition = 'transform 0.1s';
+            active.style.transform = 'scale(1.004)';
+            setTimeout(() => { active.style.transform = ''; active.style.transition = ''; }, 150);
+            break;
+        case 'fire':
+            active.style.filter = 'sepia(0.3) brightness(1.1)';
+            setTimeout(() => { active.style.filter = ''; }, 120);
+            flicker();
+            break;
+        case 'stone':
+            active.style.opacity = '0.8';
+            setTimeout(() => { active.style.opacity = '1'; }, 80);
+            break;
+        case 'bone':
+            active.style.textShadow = '1px 0 #cc662244, -1px 0 #cc662244';
+            setTimeout(() => { active.style.textShadow = ''; }, 200);
+            break;
+        case 'herb':
+            active.style.filter = 'hue-rotate(120deg) brightness(0.95)';
+            setTimeout(() => { active.style.filter = ''; }, 100);
+            break;
+        case 'ready':
+            flicker();
+            active.classList.add('text-glitch');
+            active.style.filter = 'invert(0.08) hue-rotate(180deg)';
+            setTimeout(() => {
+                active.classList.remove('text-glitch');
+                active.style.filter = '';
+                flicker();
+            }, 200);
+            break;
+        default:
+            if(Math.random() < 0.3) flicker();
+    }
+}
+
+// ═════════════════════════════════════════════════════
+//  OPEN CHANNEL / TRANSMISSION
+// ═════════════════════════════════════════════════════
+function openChannel() {
+    if(getSig() < 85) return;
+    flicker();
+    pickGhost();
+    setTimeout(() => {
+        show('tx-screen');
+        startTx();
+    }, 300);
+}
+
+function pickGhost() {
+    // Filter by era, fall back to any
+    const conf = getConf();
+    let pool = GHOSTS.filter(g => g.era === era);
+    // If barrier is off and blood is high, allow "Nešto Ispod"
+    if(document.getElementById('tog-barrier').checked && knobState.blood > 50) {
+        const thing = GHOSTS.find(g => g.name === 'Nešto Ispod');
+        if(thing && Math.random() < 0.4) { currentGhostIdx = GHOSTS.indexOf(thing); return; }
+    }
+    if(!pool.length) pool = GHOSTS;
+    // Avoid repeating same ghost
+    let idx;
+    do { idx = GHOSTS.indexOf(pool[Math.floor(Math.random() * pool.length)]); } while(idx === currentGhostIdx && pool.length > 1);
+    currentGhostIdx = idx;
+}
+
+function startTx() {
+    const ghost = GHOSTS[currentGhostIdx];
+    document.getElementById('tx-title').textContent = 'Incoming';
+    document.getElementById('tx-ghost-name').textContent = ghost.title;
+    const body = document.getElementById('tx-body');
+    body.innerHTML = '';
+    txTimeouts.forEach(t => clearTimeout(t));
+    txTimeouts = [];
+
+    // Name reveal after first line
+    const nameT = setTimeout(() => {
+        document.getElementById('tx-title').textContent = ghost.name;
+    }, 1500);
+    txTimeouts.push(nameT);
+
+    ghost.lines.forEach((msg, i) => {
+        const delay = i * 1800 + 800;
+        const t = setTimeout(() => {
+            body.querySelectorAll('.tx-cursor').forEach(c => c.remove());
+            const line = document.createElement('div');
+            line.className = 'tx-line' + (msg.style ? ' ' + msg.style : '');
+
+            if(msg.style === 'dim') {
+                line.textContent = msg.text;
+                body.appendChild(line);
+            } else {
+                const span = document.createElement('span');
+                line.appendChild(span);
+                const cursor = document.createElement('span');
+                cursor.className = 'tx-cursor';
+                line.appendChild(cursor);
+                body.appendChild(line);
+                let ci = 0;
+                const iv = setInterval(() => {
+                    if(ci >= msg.text.length) { clearInterval(iv); return; }
+                    span.textContent += msg.text[ci];
+                    ci++;
+                    body.scrollTop = 99999;
+                }, 40 + Math.random() * 50);
+                txTimeouts.push(iv);
+            }
+
+            body.scrollTop = 99999;
+            if(msg.style === 'scream') { flicker(); flicker(); }
+            else if(msg.style !== 'dim') flicker();
+        }, delay);
+        txTimeouts.push(t);
+    });
+}
+
+function nextGhost() {
+    txTimeouts.forEach(t => clearTimeout(t));
+    txTimeouts = [];
+    flicker();
+    pickGhost();
+    setTimeout(startTx, 300);
+}
+
+function closeTx() {
+    txTimeouts.forEach(t => clearTimeout(t));
+    txTimeouts = [];
+    show('tuner-screen');
+}
+
+// ═════════════════════════════════════════════════════
+//  UTILS
+// ═════════════════════════════════════════════════════
+function flicker() {
+    const f = document.getElementById('flicker');
+    f.style.cssText = 'animation:none;';
+    void f.offsetWidth;
+    f.style.cssText = 'animation:flicker1 0.25s forwards;';
+}
+
+function notify(src, msg) {
+    document.getElementById('notif-src').textContent = src;
+    document.getElementById('notif-msg').textContent = msg;
+    const bar = document.getElementById('notif-bar');
+    bar.classList.add('show');
+    setTimeout(() => bar.classList.remove('show'), 4000);
+}
+</script>
+</body>
+</html>
